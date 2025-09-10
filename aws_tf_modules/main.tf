@@ -22,5 +22,14 @@ module "ec2" {
   instance_type = var.instance_type
   subnet_id     = module.subnet.subnet_id
   instance_name = var.instance_name
+  # Attach SG to EC2
+  vpc_security_group_ids = [module.sg.security_group_id]
 }
 
+module "sg" {
+  source     = "./modules/sg"
+  vpc_id     = module.vpc.vpc_id
+  ingress_cidr  = module.vpc.vpc_cidr_block
+  sg_name       = "allow_tls"
+  sg_description = "Allow TLS inbound traffic and all outbound traffic"
+}
