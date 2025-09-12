@@ -2,7 +2,7 @@
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "gips-my-bucket1"
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 
   versioning {
