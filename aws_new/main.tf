@@ -27,13 +27,23 @@ resource "aws_security_group" "allow_ssh" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   
+    }
 }
 
 resource "aws_instance" "web_server" {
-  ami           = "ami-07ff62358b87c7116"
+  ami           = "ami-069e612f612be3a2b"
   instance_type = "t2.micro"
-  security_groups = [aws_security_group.allow_ssh.name]
+  vpc_security_group_ids = [aws_security_group.allow_ssh.id]
+  user_data = <<-EOF
+                #!/bin/bash
+                sudo yum update -y
+                sudo yum install -y httpd
+                sudo systemctl start httpd
+                sudo systemctl enable httpd
+                echo "<h1>Welcome to the Web Server</h1>" > /var/www/html/index.html
+                EOF
 
+    user_data_replace_on_change = true
   tags = {
     Name = "WebServerInstance"
   }
