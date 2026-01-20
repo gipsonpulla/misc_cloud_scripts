@@ -14,7 +14,7 @@ provider "aws" {
 }
 
 resource "aws_vpc" "vpc1" {
-  cidr_block           = "10.0.0.2/16"
+  cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
 
@@ -26,11 +26,20 @@ resource "aws_vpc" "vpc1" {
 
 resource "aws_subnet" "subnet1" {
   vpc_id                  = aws_vpc.vpc1.id
-  cidr_block              = "10.0.0.2/24"
+  cidr_block              = "10.0.0.0/24"
   availability_zone       = "us-east-1a"
   map_public_ip_on_launch = true
   tags = {
     Name = "subnet1"
+  }
+}
+resource "aws_subnet" "subnet2" {
+  vpc_id                  = aws_vpc.vpc1.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1b"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "subnet2"
   }
 }
 resource "aws_internet_gateway" "igw1" {
@@ -76,12 +85,14 @@ resource "aws_security_group" "sg1" {
   }
 }
 # ami-069e612f612be3a2b
-resource "aws_launch_configuration" "lc1" {
-  name            = "lc1"
-  image_id        = "ami-069e612f612be3a2b"
-  instance_type   = "t2.micro"
-  security_groups = [aws_security_group.sg1.id]
-  user_data       = <<-EOF
+resource "aws_launch_template" "lt1" {
+  name_prefix   = "lt1-"
+  image_id      = "ami-069e612f612be3a2b"
+  instance_type = "t2.micro"
+
+  vpc_security_group_ids = [aws_security_group.sg1.id]
+
+  user_data = <<-EOF
                 #!/bin/bash
                 sudo yum update -y
                 sudo yum install -y httpd
@@ -95,13 +106,16 @@ resource "aws_launch_configuration" "lc1" {
   }
 }
 resource "aws_autoscaling_group" "asg1" {
-  desired_capacity     = 2
-  max_size             = 3
-  min_size             = 1
-  launch_configuration = aws_launch_configuration.lc1.name
-  vpc_zone_identifier  = data.aws_availability_zones.available.aws_subnet_ids
-  target_group_arns    = [aws_alb_target_group.alb-tg.arn]
-  health_check_type    = "ELB"
+  desired_capacity = 2
+  max_size         = 3
+  min_size         = 1
+  launch_template {
+    id      = aws_launch_template.lt1.id
+    version = "$Latest"
+  }
+  vpc_zone_identifier = [aws_subnet.subnet1.id, aws_subnet.subnet2.id]
+  target_group_arns   = [aws_lb_target_group.alb-tg.arn]
+  health_check_type   = "ELB"
 
   tag {
     key                 = "Name"
@@ -119,7 +133,7 @@ resource "aws_lb" "alb1" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb-sg.id]
-  subnets            = data.aws_subnet_ids.default.ids
+  subnets            = [aws_subnet.subnet1.id, aws_subnet.subnet2.id]
 
   tags = {
     Name = "alb1"
@@ -127,9 +141,9 @@ resource "aws_lb" "alb1" {
 
 }
 
-resource "aws_alb_listener" "alb_listener" {
-  load_balancer_arn = aws_alb.alb1.arn
-  port              = "80"
+resource "aws_lb_listener" "alb_listener" {
+  load_balancer_arn = aws_lb.alb1.arn
+  port              = 80
   protocol          = "HTTP"
 
   default_action {
@@ -180,17 +194,17 @@ resource "aws_lb_target_group" "alb-tg" {
 }
 
 resource "aws_lb_listener_rule" "alb-lr" {
-  listener_arn = aws_alb_listener.alb_listener.arn
+  listener_arn = aws_lb_listener.alb_listener.arn
   priority     = 100
 
   action {
     type             = "forward"
-    target_group_arn = aws_alb_target_group.alb-tg.arn
+    target_group_arn = aws_lb_target_group.alb-tg.arn
   }
 
   condition {
     path_pattern {
-      values = ["*"]
+      values = ["/*"]
     }
   }
 
