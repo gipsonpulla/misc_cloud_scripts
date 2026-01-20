@@ -92,7 +92,7 @@ resource "aws_launch_template" "lt1" {
 
   vpc_security_group_ids = [aws_security_group.sg1.id]
 
-  user_data = <<-EOF
+  user_data = base64encode(<<-EOF
                 #!/bin/bash
                 sudo yum update -y
                 sudo yum install -y httpd
@@ -100,6 +100,7 @@ resource "aws_launch_template" "lt1" {
                 sudo systemctl enable httpd
                 echo "<h1>Welcome to the Web Server</h1>" > /var/www/html/index.html
                 EOF
+  )
 
   lifecycle {
     create_before_destroy = true
